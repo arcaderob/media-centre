@@ -1,0 +1,83 @@
+version: "3.8"
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    environment:
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=
+      - OPENVPN_PASSWORD=
+      - SERVER_COUNTRIES=Canada  # Replace with preferred NordVPN countries
+      - OPENVPN_PROTOCOL=udp
+      - PUID=501
+      - PGID=20
+      - TZ=America/Toronto                    # Set your timezone
+    volumes:
+      - ./gluetun/config:/gluetun
+    ports:
+      - 8080:8080        # Port for accessing qBittorrent Web UI (exposed through the VPN)
+      - 6881:6881        # Port for torrent downloads
+      - 6881:6881/udp    # Torrent UDP traffic
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN        # Allows network management capabilities for the container
+    dns:
+      - 1.1.1.1          # DNS settings for privacy (Cloudflare's DNS)
+
+  sonarr:
+    image: ghcr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=501               
+      - PGID=20               
+      - TZ=America/Toronto      
+    volumes:
+      - ./sonarr/config:/config         
+      - ./shared/downloads:/downloads   
+      - ./shared/downloads:/tv          
+    ports:
+      - 8989:8989                
+    restart: unless-stopped
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=501               
+      - PGID=20               
+      - TZ=America/Toronto      
+      - WEBUI_PORT=8080         
+    volumes:
+      - ./qbittorrent/config:/config    
+      - ./shared/downloads:/downloads   
+    network_mode: "service:gluetun"    # Routes qBittorrent traffic through gluetun (VPN)
+    restart: unless-stopped
+
+  jackett:
+    image: linuxserver/jackett:latest
+    container_name: jackett
+    environment:
+      - PUID=501              
+      - PGID=20               
+      - TZ=America/Toronto     
+    volumes:
+      - ./jackett/config:/config
+    ports:
+      - 9117:9117              
+    restart: unless-stopped
+
+  emby:
+    image: linuxserver/emby:latest
+    container_name: emby
+    environment:
+      - PUID=501               
+      - PGID=20               
+      - TZ=America/Toronto      
+    volumes:
+      - ./emby/config:/config          
+      - ./shared/downloads:/media      
+    ports:
+      - 8096:8096                
+      - 8920:8920                
+    restart: unless-stopped
